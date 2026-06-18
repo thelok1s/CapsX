@@ -1,0 +1,81 @@
+# CapsX CI Verification Workflow
+#
+# Runs on every push and pull request to ensure the code compiles cleanly
+# for all three Windows targets.  Does NOT produce release artifacts — that
+# is handled by release.yml on version tags.
+#
+# Steps per target:
+#   1. cargo check  — fast syntax + type check (no linking)
+#   2. cargo clippy — linting
+#
+# All three targets are checked in parallel on windows-latest so the full
+# MSVC toolchain (including the ARM64 cross-compiler and rc.exe for build.rs)
+# is available without extra setup.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']   # release.yml owns tag pushes
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check — ${{ matrix.target }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - i686-pc-windows-msvc
+          - aarch64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable + ${{ matrix.target }})
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy
+
+      - name: Cache Cargo artefacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-${{ matrix.target }}
+
+      # cargo check is faster than build — catches all type/borrow errors.
+      - name: cargo check
+        run: cargo check --target ${{ matrix.target }}
+
+      # Clippy lints for correctness and idiomatic Rust.
+      - name: cargo clippy
+        run: >
+          cargo clippy --target ${{ matrix.target }} --
+          -D warnings
+          -W clippy::pedantic
+          -A clippy::missing_errors_doc
+          -A clippy::missing_panics_doc
+
+  # Optional: verify rustfmt formatting on the host (no target needed).
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable + rustfmt)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check

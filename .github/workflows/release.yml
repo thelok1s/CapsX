@@ -1,0 +1,100 @@
+# CapsX Release Workflow
+#
+# Triggers on any tag that starts with "v" (e.g. v0.1.0, v1.0.0).
+# Builds three Windows targets in parallel, then publishes a GitHub Release
+# with all three binaries attached.
+#
+# Targets
+# ───────
+#   x86_64-pc-windows-msvc  →  capsx_x64.exe
+#   i686-pc-windows-msvc    →  capsx_x86.exe
+#   aarch64-pc-windows-msvc →  capsx_arm64.exe
+#
+# All targets are compiled on the `windows-latest` runner so that rc.exe
+# and the Visual Studio ARM64 cross-compiler are available without extra setup.
+
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: # Manual trigger for testing without creating a release.
+
+permissions:
+  contents: write # Required by softprops/action-gh-release.
+
+jobs:
+  # ── Build job (runs three times in parallel) ─────────────────────────────────
+  build:
+    name: Build — ${{ matrix.artifact }}
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target:   x86_64-pc-windows-msvc
+            artifact: capsx_x64.exe
+
+          - target:   i686-pc-windows-msvc
+            artifact: capsx_x86.exe
+
+          - target:   aarch64-pc-windows-msvc
+            artifact: capsx_arm64.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable + ${{ matrix.target }})
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo artefacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename artifact
+        shell: pwsh
+        run: |
+          $src = "target\${{ matrix.target }}\release\capsx.exe"
+          Copy-Item $src -Destination "${{ matrix.artifact }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ── Release job (assembles all binaries into a GitHub Release) ───────────────
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -lh release-artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }} # v0.1.0-rc1 → pre-release

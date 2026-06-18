@@ -1,0 +1,46 @@
+[package]
+name = "capsx"
+version = "0.1.0"
+edition = "2021"
+description = "CapsX — CapsLock keyboard-layout switcher for Windows"
+authors = ["CapsX Contributors"]
+license = "MIT"
+repository = "https://github.com/your-org/capsx"
+keywords = ["windows", "keyboard", "language", "capslock", "layout"]
+categories = ["os::windows-apis"]
+
+[[bin]]
+name = "capsx"
+path = "src/main.rs"
+
+# ── Runtime dependencies ──────────────────────────────────────────────────────
+#
+# windows-sys provides raw Win32 API bindings that compile on any host OS
+# (unlike the high-level `windows` crate whose sub-crates like `windows-future`
+# reference COM symbols that only exist on Windows).  This lets `cargo check`
+# run locally on macOS/Linux while the CI builds run on windows-latest.
+
+[dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",          # GetLocaleInfoW
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# ── Build-time dependencies ───────────────────────────────────────────────────
+
+[build-dependencies]
+winres = "0.1"
+
+# ── Release profile: tiny, fast, dependency-free binary ──────────────────────
+
+[profile.release]
+opt-level     = "z"
+lto           = true
+strip         = true
+codegen-units = 1
+panic         = "abort"
