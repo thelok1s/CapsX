@@ -1,7 +1,7 @@
 # CapsX
 
-[![CI](https://github.com/your-org/capsx/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/capsx/actions/workflows/ci.yml)
-[![Build and Release](https://github.com/your-org/capsx/actions/workflows/release.yml/badge.svg)](https://github.com/your-org/capsx/actions/workflows/release.yml)
+[![CI](https://github.com/thelok1s/CapsX/actions/workflows/ci.yml/badge.svg)](https://github.com/thelok1s/CapsX/actions/workflows/ci.yml)
+[![Build and Release](https://github.com/thelok1s/CapsX/actions/workflows/release.yml/badge.svg)](https://github.com/thelok1s/CapsX/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A tiny Windows system-tray utility that switches keyboard layouts with
@@ -36,7 +36,7 @@ Additional behaviour:
 ## Installation
 
 1. **Download** the latest release from
-   [Releases](https://github.com/your-org/capsx/releases/latest).
+   [Releases](https://github.com/thelok1s/CapsX/releases/latest).
 2. Choose the binary for your architecture:
    - `capsx_x64.exe` — 64-bit Intel/AMD
    - `capsx_x86.exe` — 32-bit Intel/AMD

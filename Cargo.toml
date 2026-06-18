@@ -26,6 +26,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_Globalization",          # GetLocaleInfoW
     "Win32_Graphics_Gdi",
     "Win32_System_LibraryLoader",
+    "Win32_System_Registry",        # autostart via Run registry key
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",

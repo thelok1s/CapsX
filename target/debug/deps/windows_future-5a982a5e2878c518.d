@@ -1,0 +1,10 @@
+/Users/lok1s/Documents/antigravity/focused-mendel/target/debug/deps/windows_future-5a982a5e2878c518.d: /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/lib.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings_impl.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/get.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/waiter.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/../readme.md
+
+/Users/lok1s/Documents/antigravity/focused-mendel/target/debug/deps/libwindows_future-5a982a5e2878c518.rmeta: /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/lib.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings_impl.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/get.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/waiter.rs /Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/../readme.md
+
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/lib.rs:
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings.rs:
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/bindings_impl.rs:
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/get.rs:
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/waiter.rs:
+/Users/lok1s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/windows-future-0.2.1/src/../readme.md:

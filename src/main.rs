@@ -9,8 +9,8 @@
 // Behaviour
 // ─────────
 // • CapsLock alone      → switch foreground window to the next installed layout
-// • Modifier + CapsLock → real CapsLock toggle  (default modifier: Alt)
-//   Modifier selectable at startup: capsx.exe [-shift | -ctrl | -alt]
+// • Modifier + CapsLock → real CapsLock toggle  (default modifier: Shift)
+//   Modifier selectable at startup or from the tray menu.
 // • -led flag (or tray menu toggle) → use the CapsLock LED as a layout-parity
 //   indicator (even index = LED off, odd index = LED on).
 //
@@ -39,7 +39,13 @@ use windows_sys::Win32::{
     Foundation::*,
     Globalization::GetLocaleInfoW,
     Graphics::Gdi::*,
-    System::LibraryLoader::GetModuleHandleW,
+    System::{
+        LibraryLoader::GetModuleHandleW,
+        Registry::{
+            HKEY, RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+            HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_SZ,
+        },
+    },
     UI::{
         Input::KeyboardAndMouse::*,
         Shell::{
@@ -58,11 +64,14 @@ const APP_VERSION: &str = "0.1.0";
 
 const TRAY_ICON_UID: u32 = 1001;
 
-const ID_EXIT: usize = 4001;
-const ID_ABOUT: usize = 4002;
-const ID_GITHUB: usize = 4003;
-const ID_CREDITS: usize = 4004;
+const ID_EXIT:      usize = 4001;
+const ID_ABOUT:     usize = 4002;
+const ID_GITHUB:    usize = 4003;
 const ID_TOGGLE_LED: usize = 4005;
+const ID_MOD_SHIFT: usize = 4010;   // modifier selector items
+const ID_MOD_CTRL:  usize = 4011;
+const ID_MOD_ALT:   usize = 4012;
+const ID_AUTOSTART: usize = 4013;   // Start with Windows toggle
 
 /// User-defined message for the tray icon callback (WM_APP + 1).
 const TRAY_MSG: u32 = WM_APP + 1;
@@ -77,7 +86,7 @@ const LOCALE_SISO639LANGNAME: u32 = 0x0000_0059;
 
 // ── Global state ──────────────────────────────────────────────────────────────
 
-static G_MODIFIER_VK: AtomicU32 = AtomicU32::new(VK_MENU as u32);
+static G_MODIFIER_VK: AtomicU32 = AtomicU32::new(VK_SHIFT as u32); // default: Shift+CapsLock = real toggle
 static G_MODIFIER_COMBO: AtomicBool = AtomicBool::new(false);
 static G_HOOK: AtomicUsize = AtomicUsize::new(0);
 static G_PREV_INDEX: AtomicI32 = AtomicI32::new(-1);
@@ -491,6 +500,64 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Autostart (HKCU\...\Run registry entry)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Returns `true` when a "CapsX" value exists under the user's Run key.
+unsafe fn check_autostart() -> bool {
+    let sub_key  = wz("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    let val_name = wz("CapsX");
+    let mut hkey: HKEY = std::ptr::null_mut();
+
+    if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key.as_ptr(), 0, KEY_READ, &mut hkey) != 0 {
+        return false;
+    }
+    let mut data_size: u32 = 0;
+    let found = RegQueryValueExW(
+        hkey,
+        val_name.as_ptr(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        std::ptr::null_mut(),
+        &mut data_size,
+    ) == 0; // 0 = ERROR_SUCCESS
+    RegCloseKey(hkey);
+    found
+}
+
+/// Add or remove CapsX from the Windows startup programs list.
+/// The stored command is the quoted path to the current executable.
+unsafe fn set_autostart(enable: bool) {
+    let sub_key  = wz("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+    let val_name = wz("CapsX");
+    let mut hkey: HKEY = std::ptr::null_mut();
+
+    if RegOpenKeyExW(HKEY_CURRENT_USER, sub_key.as_ptr(), 0, KEY_SET_VALUE, &mut hkey) != 0 {
+        return;
+    }
+
+    if enable {
+        let exe = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.to_str().map(str::to_owned))
+            .unwrap_or_default();
+        let value = wz(&format!("\"{}\"", exe)); // quote path in case it contains spaces
+        RegSetValueExW(
+            hkey,
+            val_name.as_ptr(),
+            0,
+            REG_SZ,
+            value.as_ptr() as *const u8,
+            (value.len() * 2) as u32, // byte count including null terminator
+        );
+    } else {
+        RegDeleteValueW(hkey, val_name.as_ptr());
+    }
+
+    RegCloseKey(hkey);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Context menu
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -498,21 +565,32 @@ unsafe fn show_context_menu(hwnd: HWND) {
     let hmenu = CreatePopupMenu();
     if hmenu.is_null() { return; }
 
-    let about_w   = wz("&About CapsX");
-    let github_w  = wz("&GitHub Repository");
-    let credits_w = wz("&Credits / BarsCaps");
-    let led_w     = wz("&LED language indicator");
-    let exit_w    = wz("E&xit");
+    // ── Header ───────────────────────────────────────────────────────────────
+    AppendMenuW(hmenu, MF_STRING, ID_ABOUT,  wz("&About CapsX").as_ptr());
+    AppendMenuW(hmenu, MF_STRING, ID_GITHUB, wz("&GitHub ↗").as_ptr());
+    AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
 
-    AppendMenuW(hmenu, MF_STRING,    ID_ABOUT,    about_w.as_ptr());
-    AppendMenuW(hmenu, MF_STRING,    ID_GITHUB,   github_w.as_ptr());
-    AppendMenuW(hmenu, MF_STRING,    ID_CREDITS,  credits_w.as_ptr());
-    AppendMenuW(hmenu, MF_SEPARATOR, 0,           std::ptr::null());
+    // ── Modifier selector (radio-button style checkmarks) ─────────────────────
+    // A grayed label acts as a section header.
+    AppendMenuW(hmenu, MF_STRING | MF_GRAYED, 0, wz("Modifier key:").as_ptr());
 
-    let led_flags = MF_STRING | if G_ENABLE_LED.load(Ordering::Relaxed) { MF_CHECKED } else { 0 };
-    AppendMenuW(hmenu, led_flags,    ID_TOGGLE_LED, led_w.as_ptr());
-    AppendMenuW(hmenu, MF_SEPARATOR, 0,             std::ptr::null());
-    AppendMenuW(hmenu, MF_STRING,    ID_EXIT,       exit_w.as_ptr());
+    let cur_mod = G_MODIFIER_VK.load(Ordering::Relaxed) as u16;
+    let flag_shift = MF_STRING | if cur_mod == VK_SHIFT   { MF_CHECKED } else { 0 };
+    let flag_ctrl  = MF_STRING | if cur_mod == VK_CONTROL { MF_CHECKED } else { 0 };
+    let flag_alt   = MF_STRING | if cur_mod == VK_MENU    { MF_CHECKED } else { 0 };
+    AppendMenuW(hmenu, flag_shift, ID_MOD_SHIFT, wz("  Shift + CapsLock = real toggle").as_ptr());
+    AppendMenuW(hmenu, flag_ctrl,  ID_MOD_CTRL,  wz("  Ctrl + CapsLock = real toggle").as_ptr());
+    AppendMenuW(hmenu, flag_alt,   ID_MOD_ALT,   wz("  Alt + CapsLock = real toggle").as_ptr());
+    AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
+
+    // ── Feature toggles ───────────────────────────────────────────────────────
+    let led_flag      = MF_STRING | if G_ENABLE_LED.load(Ordering::Relaxed) { MF_CHECKED } else { 0 };
+    let autostart_flag = MF_STRING | if check_autostart() { MF_CHECKED } else { 0 };
+    AppendMenuW(hmenu, led_flag,       ID_TOGGLE_LED, wz("&LED language indicator").as_ptr());
+    AppendMenuW(hmenu, autostart_flag, ID_AUTOSTART,  wz("&Start with Windows").as_ptr());
+    AppendMenuW(hmenu, MF_SEPARATOR, 0, std::ptr::null());
+
+    AppendMenuW(hmenu, MF_STRING, ID_EXIT, wz("E&xit").as_ptr());
 
     let mut pt: POINT = std::mem::zeroed();
     GetCursorPos(&mut pt);
@@ -530,62 +608,59 @@ unsafe fn on_command(hwnd: HWND, cmd: usize) {
     match cmd {
         ID_EXIT => { DestroyWindow(hwnd); }
 
+        // ── Modifier selection ────────────────────────────────────────────────
+        ID_MOD_SHIFT => G_MODIFIER_VK.store(VK_SHIFT   as u32, Ordering::Relaxed),
+        ID_MOD_CTRL  => G_MODIFIER_VK.store(VK_CONTROL as u32, Ordering::Relaxed),
+        ID_MOD_ALT   => G_MODIFIER_VK.store(VK_MENU    as u32, Ordering::Relaxed),
+
+        // ── LED toggle ────────────────────────────────────────────────────────
         ID_TOGGLE_LED => {
-            // XOR-toggle the LED enable flag.
             let was = G_ENABLE_LED.fetch_xor(true, Ordering::Relaxed);
             if !was {
-                // Just enabled — sync LED to current layout parity.
                 let idx = G_PREV_INDEX.load(Ordering::Relaxed).max(0) as usize;
                 toggle_caps_led(idx % 2 == 1);
             }
         }
 
+        // ── Autostart toggle ──────────────────────────────────────────────────
+        ID_AUTOSTART => {
+            let currently = check_autostart();
+            set_autostart(!currently);
+        }
+
+        // ── About ─────────────────────────────────────────────────────────────
         ID_ABOUT => {
             let modifier = match G_MODIFIER_VK.load(Ordering::Relaxed) as u16 {
                 VK_SHIFT   => "Shift",
                 VK_CONTROL => "Ctrl",
                 _          => "Alt",
             };
-            let led = if G_ENABLE_LED.load(Ordering::Relaxed) { "on" } else { "off" };
+            let led       = if G_ENABLE_LED.load(Ordering::Relaxed) { "on" } else { "off" };
+            let autostart = if check_autostart() { "yes" } else { "no" };
             let body = format!(
                 "{} v{} ({})\r\n\r\n\
                  CapsLock keyboard-layout switcher for Windows.\r\n\r\n\
                  \u{2022} CapsLock \u{2192} switch to next keyboard layout\r\n\
                  \u{2022} {} + CapsLock \u{2192} real CapsLock toggle\r\n\
-                 \u{2022} LED indicator: {}\r\n\r\n\
+                 \u{2022} LED indicator: {}\r\n\
+                 \u{2022} Start with Windows: {}\r\n\r\n\
                  Tray icon shows the current layout (e.g. EN, RU).\r\n\r\n\
                  Startup flags: -shift | -ctrl | -alt | -led\r\n\r\n\
+                 Based on BarsCaps by Mikhail Svarichevsky\r\n\
+                 github.com/BarsMonster/BarsCaps\r\n\r\n\
                  MIT License",
-                APP_NAME, APP_VERSION, arch_name(), modifier, led,
+                APP_NAME, APP_VERSION, arch_name(), modifier, led, autostart,
             );
             let title_w = wz(&format!("About {}", APP_NAME));
             let body_w  = wz(&body);
             MessageBoxW(hwnd, body_w.as_ptr(), title_w.as_ptr(), MB_OK | MB_ICONINFORMATION);
         }
 
+        // ── GitHub ────────────────────────────────────────────────────────────
         ID_GITHUB => {
-            let url = wz("https://github.com/your-org/capsx");
+            let url = wz("https://github.com/thelok1s/CapsX");
             let op  = wz("open");
             ShellExecuteW(hwnd, op.as_ptr(), url.as_ptr(), std::ptr::null(), std::ptr::null(), SW_SHOWNORMAL);
-        }
-
-        ID_CREDITS => {
-            let body = concat!(
-                "CapsX is a Rust rewrite of BarsCaps.\r\n\r\n",
-                "BarsCaps (original C++ project)\r\n",
-                "  Author : Mikhail Svarichevsky\r\n",
-                "  URL    : https://github.com/BarsMonster/BarsCaps\r\n",
-                "  URL    : https://3.14.by/\r\n",
-                "  License: MIT\r\n\r\n",
-                "CapsX adds:\r\n",
-                "  \u{2022} Dynamic language abbreviation in tray icon\r\n",
-                "  \u{2022} CapsLock LED as layout-parity indicator (-led)\r\n",
-                "  \u{2022} No hardcoded layout-count limit\r\n",
-                "  \u{2022} CI/CD GitHub Actions pipeline\r\n",
-            );
-            let title_w = wz("Credits");
-            let body_w  = wz(body);
-            MessageBoxW(hwnd, body_w.as_ptr(), title_w.as_ptr(), MB_OK | MB_ICONINFORMATION);
         }
 
         _ => {}
