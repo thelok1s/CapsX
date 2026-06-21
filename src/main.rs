@@ -60,7 +60,8 @@ use windows_sys::Win32::{
 // ── Compile-time constants ────────────────────────────────────────────────────
 
 const APP_NAME: &str = "CapsX";
-const APP_VERSION: &str = "0.1.0";
+const APP_VERSION: &str = "0.1.1";
+
 
 const TRAY_ICON_UID: u32 = 1001;
 

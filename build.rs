@@ -14,9 +14,10 @@ fn main() {
             "LegalCopyright",
             "Based on BarsCaps by Mikhail Svarichevsky. MIT License.",
         );
-        // VERSION 0.1.0.0 — high word = major.minor, low word = patch.build
-        res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0000_0001_0000_0000);
-        res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0000_0001_0000_0000);
+        // VERSION 0.1.1.0 — high word = major.minor, low word = patch.build
+        res.set_version_info(winres::VersionInfo::PRODUCTVERSION, 0x0000_0001_0001_0000);
+        res.set_version_info(winres::VersionInfo::FILEVERSION, 0x0000_0001_0001_0000);
+
 
         // Best-effort: ignore failure if rc.exe / llvm-rc is not in PATH.
         let _ = res.compile();

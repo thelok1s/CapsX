@@ -1,6 +1,7 @@
 [package]
 name = "capsx"
-version = "0.1.0"
+version = "0.1.1"
+
 edition = "2021"
 description = "CapsX — CapsLock keyboard-layout switcher for Windows"
 authors = ["CapsX Contributors"]
